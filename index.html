@@ -454,6 +454,8 @@ const privOpenAIKey = envConfig.apiKeys.openai;
 const privGoogleTTSKey = envConfig.apiKeys.googleTTS;
 const privElevenLabsKey = envConfig.apiKeys.elevenLabs;
 
+
+
 //************  tts additional api ***********// 
 
 
@@ -3825,16 +3827,71 @@ document.addEventListener('DOMContentLoaded', async function(e) {
 
           const nodeOutput = addMessage(false);
           llamaSendMessage(nodeOutput,m);
-        } else if ( cfg('ai-model').startsWith("grok") ) {
+        } else if ( cfg('ai-model').startsWith("ew") ) {
+          console.log("check ew-ollama!");
           const m = openaiBuildMessage();
+          const inputText = text;
 
           const nodeInput = addMessage(true);
-          nodeInput.dataset.input = text;
-          addText(nodeInput,text);
-          e.property("value","");
+          nodeInput.dataset.input = inputText;
+          addText(nodeInput, inputText);
+          e.property("value", "");
 
           const nodeOutput = addMessage(false);
-          grokSendMessage(nodeOutput,m);
+
+          // 🔥 Step 1: 초기 POST 요청으로 chat_id 생성
+          const initRes = await fetch(`${lampOllamaProxyEndpoint}/chat`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              message: inputText,
+              create_room: false,
+              request_model: "Ollama",
+              request_type: "text",
+              temperature: 0.5,
+              context_length: 4096
+            })
+          });
+
+          const { chat_id } = await initRes.json();
+
+          // 🔥 Step 2: WebSocket 연결로 답변 수신
+          const socket = new WebSocket(`${lampOllamaProxyWs}/${chat_id}`);
+
+          socket.onopen = () => {
+            console.log("🔗 WebSocket connected");
+          };
+
+          socket.onmessage = (event) => {
+            try {
+              const json = JSON.parse(event.data.toString());
+              if (json.status === "completed") {
+                socket.close();
+              } else if (json.status === "error") {
+                console.error("❌ Error:", json.error);
+                socket.close();
+              } else if (json.data) {
+                appendText(nodeOutput, json.data); // 실시간 응답 출력
+                if (head) {
+                  head.speakText(json.data); // 👄 TalkingHead 발화
+                }
+              }
+            } catch (err) {
+              console.error("❌ Parsing error", err);
+              socket.close();
+            }
+          };
+
+          socket.onerror = (err) => {
+            console.error("WebSocket Error", err);
+          };
+
+          socket.onclose = () => {
+            console.log("🔒 WebSocket closed");
+          };
+
         }
 
       }
@@ -4506,6 +4563,7 @@ document.addEventListener('DOMContentLoaded', async function(e) {
     d3.select("#ai-gemini").style("display", (e.attr("data-ai-model").startsWith('gemini') ) ? "flex" : "none" );
     d3.select("#ai-grok").style("display", (e.attr("data-ai-model").startsWith('grok') ) ? "flex" : "none" );
     d3.select("#ai-llama").style("display", (e.attr("data-ai-model").startsWith('llama') ) ? "flex" : "none" );
+    d3.select("#ai-ew").style("display", (e.attr("data-ai-model").startsWith('ew') ) ? "flex" : "none" );
   });
 
   d3.select("#session-duplicate").on('click', function(ev) {
