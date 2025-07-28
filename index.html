@@ -405,8 +405,10 @@
 <script type="module">
 import { site } from './siteconfig.js'
 import { TalkingHead } from "./modules/talkinghead.mjs";
+import { envConfig } from './envconfig.js';
 import dompurify from 'dompurify';
 import { marked } from 'marked';
+
 
 // API proxys
 const jwtEndpoint = "/app/jwt/get"; // Get JSON Web Token for Single Sign-On
@@ -427,7 +429,8 @@ const microsoftTTSProxy = [
 const grokChatCompletionsProxy = "/grok/v1/chat/completions"; // Grok-beta
 const llamaChatCompletionsProxy = "/llama/v1/chat/completions"; // Local llama.cpp server proxy
 const localWhisperCppProxy = "/whisper/"; // Local whisper.cpp server proxy
-
+//const localOllamaProxy = "/chat";
+const LAMPOllamaProxy = "/chat";
 
 // Direct API endpoints
 const openaiChatCompletionsEndpoint = "https://api.openai.com/v1/chat/completions";
@@ -441,6 +444,18 @@ const elevenTTSEndpoint = [
 ];
 const microsoftTTSEndpoint = "wss://northeurope.tts.speech.microsoft.com/cognitiveservices/websocket/v1";
 const grokChatCompletionsEndpoint = "https://api.x.ai/v1/chat/completions";
+
+
+//************  ew custom api proxy - lmap manager ***********// 
+const lampOllamaProxyEndpoint = envConfig.apiEndpoints.ew_ollama_proxy;
+const lampOllamaProxyWs = envConfig.apiEndpoints.ew_ollama_ws_proxy;
+
+const privOpenAIKey = envConfig.apiKeys.openai;
+const privGoogleTTSKey = envConfig.apiKeys.googleTTS;
+const privElevenLabsKey = envConfig.apiKeys.elevenLabs;
+
+//************  tts additional api ***********// 
+
 
 
 // I18n internationalization
@@ -4779,6 +4794,7 @@ document.addEventListener('DOMContentLoaded', async function(e) {
                 <div class="command" data-item="ai-model" data-type="option" data-ai-model="grok-3">Grok-3</div>
                 <div class="command" data-item="ai-model" data-type="option" data-ai-model="gemini-1.5-pro">Gemini-1.5-pro</div>
                 <div class="command" data-item="ai-model" data-type="option" data-ai-model="llama">Llama</div>
+                <div class="command" data-item="ai-model" data-type="option" data-ai-model="ew-ollama">ew-ollama</div>
               </div>
             </div>
           </div>
@@ -6312,8 +6328,12 @@ document.addEventListener('DOMContentLoaded', async function(e) {
             <input id="apikey-eleven" class="apikey" type="text" placeholder="API key not specified; using proxy/JWT">
           </div>
 
-        </div>
+          <div class="row">
+            <div class="text label" style="width: 8rem">EW-Ollama</div>
+            <input id="apikey-ew-ollama" class="apikey" type="text" placeholder="API key not specified; using proxy/JWT">
+          </div>
 
+        </div>
       </div>
 
       <div class="border starttransparent"></div>
