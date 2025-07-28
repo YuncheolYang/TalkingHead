@@ -405,8 +405,10 @@
 <script type="module">
 import { site } from './siteconfig.js'
 import { TalkingHead } from "./modules/talkinghead.mjs";
+import { envConfig } from './envconfig.js';
 import dompurify from 'dompurify';
 import { marked } from 'marked';
+
 
 // API proxys
 const jwtEndpoint = "/app/jwt/get"; // Get JSON Web Token for Single Sign-On
@@ -427,7 +429,8 @@ const microsoftTTSProxy = [
 const grokChatCompletionsProxy = "/grok/v1/chat/completions"; // Grok-beta
 const llamaChatCompletionsProxy = "/llama/v1/chat/completions"; // Local llama.cpp server proxy
 const localWhisperCppProxy = "/whisper/"; // Local whisper.cpp server proxy
-
+//const localOllamaProxy = "/chat";
+const LAMPOllamaProxy = "/chat";
 
 // Direct API endpoints
 const openaiChatCompletionsEndpoint = "https://api.openai.com/v1/chat/completions";
@@ -441,6 +444,20 @@ const elevenTTSEndpoint = [
 ];
 const microsoftTTSEndpoint = "wss://northeurope.tts.speech.microsoft.com/cognitiveservices/websocket/v1";
 const grokChatCompletionsEndpoint = "https://api.x.ai/v1/chat/completions";
+
+
+//************  ew custom api proxy - lmap manager ***********// 
+const lampOllamaProxyEndpoint = envConfig.apiEndpoints.ew_ollama_proxy;
+const lampOllamaProxyWs = envConfig.apiEndpoints.ew_ollama_ws_proxy;
+
+const privOpenAIKey = envConfig.apiKeys.openai;
+const privGoogleTTSKey = envConfig.apiKeys.googleTTS;
+const privElevenLabsKey = envConfig.apiKeys.elevenLabs;
+
+
+
+//************  tts additional api ***********// 
+
 
 
 // I18n internationalization
@@ -3810,16 +3827,71 @@ document.addEventListener('DOMContentLoaded', async function(e) {
 
           const nodeOutput = addMessage(false);
           llamaSendMessage(nodeOutput,m);
-        } else if ( cfg('ai-model').startsWith("grok") ) {
+        } else if ( cfg('ai-model').startsWith("ew") ) {
+          console.log("check ew-ollama!");
           const m = openaiBuildMessage();
+          const inputText = text;
 
           const nodeInput = addMessage(true);
-          nodeInput.dataset.input = text;
-          addText(nodeInput,text);
-          e.property("value","");
+          nodeInput.dataset.input = inputText;
+          addText(nodeInput, inputText);
+          e.property("value", "");
 
           const nodeOutput = addMessage(false);
-          grokSendMessage(nodeOutput,m);
+
+          // 🔥 Step 1: 초기 POST 요청으로 chat_id 생성
+          const initRes = await fetch(`${lampOllamaProxyEndpoint}/chat`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              message: inputText,
+              create_room: false,
+              request_model: "Ollama",
+              request_type: "text",
+              temperature: 0.5,
+              context_length: 4096
+            })
+          });
+
+          const { chat_id } = await initRes.json();
+
+          // 🔥 Step 2: WebSocket 연결로 답변 수신
+          const socket = new WebSocket(`${lampOllamaProxyWs}/${chat_id}`);
+
+          socket.onopen = () => {
+            console.log("🔗 WebSocket connected");
+          };
+
+          socket.onmessage = (event) => {
+            try {
+              const json = JSON.parse(event.data.toString());
+              if (json.status === "completed") {
+                socket.close();
+              } else if (json.status === "error") {
+                console.error("❌ Error:", json.error);
+                socket.close();
+              } else if (json.data) {
+                appendText(nodeOutput, json.data); // 실시간 응답 출력
+                if (head) {
+                  head.speakText(json.data); // 👄 TalkingHead 발화
+                }
+              }
+            } catch (err) {
+              console.error("❌ Parsing error", err);
+              socket.close();
+            }
+          };
+
+          socket.onerror = (err) => {
+            console.error("WebSocket Error", err);
+          };
+
+          socket.onclose = () => {
+            console.log("🔒 WebSocket closed");
+          };
+
         }
 
       }
@@ -4491,6 +4563,7 @@ document.addEventListener('DOMContentLoaded', async function(e) {
     d3.select("#ai-gemini").style("display", (e.attr("data-ai-model").startsWith('gemini') ) ? "flex" : "none" );
     d3.select("#ai-grok").style("display", (e.attr("data-ai-model").startsWith('grok') ) ? "flex" : "none" );
     d3.select("#ai-llama").style("display", (e.attr("data-ai-model").startsWith('llama') ) ? "flex" : "none" );
+    d3.select("#ai-ew").style("display", (e.attr("data-ai-model").startsWith('ew') ) ? "flex" : "none" );
   });
 
   d3.select("#session-duplicate").on('click', function(ev) {
@@ -4779,6 +4852,7 @@ document.addEventListener('DOMContentLoaded', async function(e) {
                 <div class="command" data-item="ai-model" data-type="option" data-ai-model="grok-3">Grok-3</div>
                 <div class="command" data-item="ai-model" data-type="option" data-ai-model="gemini-1.5-pro">Gemini-1.5-pro</div>
                 <div class="command" data-item="ai-model" data-type="option" data-ai-model="llama">Llama</div>
+                <div class="command" data-item="ai-model" data-type="option" data-ai-model="ew-ollama">ew-ollama</div>
               </div>
             </div>
           </div>
@@ -6312,8 +6386,12 @@ document.addEventListener('DOMContentLoaded', async function(e) {
             <input id="apikey-eleven" class="apikey" type="text" placeholder="API key not specified; using proxy/JWT">
           </div>
 
-        </div>
+          <div class="row">
+            <div class="text label" style="width: 8rem">EW-Ollama</div>
+            <input id="apikey-ew-ollama" class="apikey" type="text" placeholder="API key not specified; using proxy/JWT">
+          </div>
 
+        </div>
       </div>
 
       <div class="border starttransparent"></div>
