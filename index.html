@@ -3840,7 +3840,7 @@ document.addEventListener('DOMContentLoaded', async function(e) {
           const nodeOutput = addMessage(false);
 
           // 🔥 Step 1: 초기 POST 요청으로 chat_id 생성
-          const initRes = await fetch(`http://192.168.66.233:8102/api/chat`, {
+          const initRes = await fetch(`http://192.168.66.233:8101/api/chat`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json"
@@ -3858,7 +3858,7 @@ document.addEventListener('DOMContentLoaded', async function(e) {
           const { chat_id } = await initRes.json();
 
           // 🔥 Step 2: WebSocket 연결로 답변 수신
-          const socket = new WebSocket(`http://192.168.66.233:8102/ws/${chat_id}`);
+          const socket = new WebSocket(`http://192.168.66.233:8101/ws/${chat_id}`);
 
           socket.onopen = () => {
             console.log("🔗 WebSocket connected");
